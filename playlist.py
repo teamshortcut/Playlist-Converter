@@ -33,6 +33,7 @@ if not result:
     quit()
 
 #FUNCTIONS
+
 def extractSpotifyIDFromURL(url):
     return url.split("https://open.spotify.com/playlist/")[1]
 
@@ -47,7 +48,7 @@ def matchTitle(string1, string2):
     #Check for extended title
     if string1 in string2 or string2 in string1:
         return True
-    
+
     #Try removing punctuation
     string1 = string1.translate(str.maketrans(dict.fromkeys(string.punctuation)))
     string2 = string2.translate(str.maketrans(dict.fromkeys(string.punctuation)))
@@ -67,6 +68,83 @@ def matchTitle(string1, string2):
         return True
 
     return False #no match
+
+#Checks for a matching track on Spotify, checking for variations in metadata
+def findTrackOnSpotify(album, artist, track):
+    albumName = album.lower()
+    artistName = artist.lower()
+    trackName = track.lower()
+
+    #Basic lowercase search
+    query = "album:" + albumName + " artist:" + artistName + " track:" + trackName
+
+    #Query Spotify
+    results = (spotify.search(query))["tracks"]["items"]
+    if results: #If matches were found
+        return results
+
+    #Strips content in ()
+    albumName = re.sub(r" ?\([^)]+\)", "", albumName)
+    artistName = re.sub(r" ?\([^)]+\)", "", artistName)
+    trackName = re.sub(r" ?\([^)]+\)", "", trackName)
+    query = "album:" + albumName + " artist:" + artistName + " track:" + trackName
+
+    results = (spotify.search(query))["tracks"]["items"]
+    if results:
+        return results
+
+    #Strips content in []
+    albumName = re.sub(r" ?\[[^\]]+\]", "", albumName)
+    artistName = re.sub(r" ?\[[^\]]+\]", "", artistName)
+    trackName = re.sub(r" ?\[[^\]]+\]", "", trackName)
+    query = "album:" + albumName + " artist:" + artistName + " track:" + trackName
+
+    results = (spotify.search(query))["tracks"]["items"]
+    if results:
+        return results
+
+    #Strips content after : character
+    albumName = re.sub(r" ?\:[^:]+", "", albumName)
+    artistName = re.sub(r" ?\:[^:]+", "", artistName)
+    trackName = re.sub(r" ?\:[^:]+", "", trackName)
+    query = "album:" + albumName + " artist:" + artistName + " track:" + trackName
+
+    results = (spotify.search(query))["tracks"]["items"]
+    if results:
+        return results
+
+    #Removes punctuation
+    albumName = albumName.translate(str.maketrans(dict.fromkeys(string.punctuation)))
+    artistName = artistName.translate(str.maketrans(dict.fromkeys(string.punctuation)))
+    trackName = trackName.translate(str.maketrans(dict.fromkeys(string.punctuation)))
+    query = "album:" + albumName + " artist:" + artistName + " track:" + trackName
+
+    results = (spotify.search(query))["tracks"]["items"]
+    if results:
+        return results
+
+    #Check if only album and track match
+    query = "album:" + album + " track:" + track
+
+    results = (spotify.search(query))["tracks"]["items"]
+    if results:
+        return results
+
+    #Check if only artist and track match
+    query = "artist:" + artistName + " track:" + trackName
+
+    results = (spotify.search(query))["tracks"]["items"]
+    if results:
+        return results
+
+    #Check if only 1 track with that title exists
+    query = "track:" + track
+
+    results = (spotify.search(query))["tracks"]["items"]
+    if len(results) == 1:
+        return results
+
+    return False #No match found
 
 #Gets playlist (owned by the user) object from a Spotify URL
 #def findOwnedSpotifyPlaylist(url):
@@ -91,16 +169,32 @@ def findSpotifyPlaylist(url):
     targetPlaylist = None
     playlistID = extractSpotifyIDFromURL(url)
 
+    #Authorises Spotify Web API (Python library doesn't support playlists not owned by user)
     auth = util.oauth2.SpotifyClientCredentials(SPOTIPY_CLIENT_ID, SPOTIPY_CLIENT_SECRET)
     token = auth.get_access_token()
     headers = {"Authorization": "Bearer "+token}
+
+    #Get playlist object with the ID from the passed playlist
     response = requests.get("https://api.spotify.com/v1/playlists/"+playlistID, headers=headers)
     
-    if response.status_code == 200:
-        targetPlaylist = response.json()
+    if response.status_code == 200: #success
+        targetPlaylist = response.json() #extracts JSON object
         return targetPlaylist
     else:
         return None
+
+#Gets playlist object from a Google Play Music playlist name
+def findGooglePlaylist(playlistName):
+    targetPlaylist = None
+
+    #Gets contents of all playlists (library doesn't support getting specific playlist)
+    allPlaylists = api.get_all_user_playlist_contents()
+    for playlist in allPlaylists:
+        #Find (first) playlist with matching name
+        if playlist["name"] == playlistName:
+            targetPlaylist = playlist
+            break
+    return targetPlaylist
 
 #Request input for (Spotify) playlist URL and validate it
 def acceptPlaylistURL():
@@ -130,6 +224,27 @@ def getInfoFromSpotifyPlaylist(targetPlaylist):
 
     return playlistItems
 
+#Extracts album, artist and track names for each item in a (Google) playlist
+def getInfoFromGooglePlaylist(targetPlaylist):
+    trackIDs = []
+    #Extract IDs of each track in the playlist
+    for track in targetPlaylist["tracks"]:
+        trackIDs.append(track["trackId"])
+    
+    tracksInfo = []
+    library = api.get_all_songs()
+    #Looks for matching track in Google Play library
+    for track in library:
+        if track["id"] in trackIDs:
+            #Add album, artist and track names to 2D array
+            info = []
+            info.append(track["album"])
+            info.append(track["albumArtist"])
+            info.append(track["title"])
+            tracksInfo.append(info)
+
+    return tracksInfo
+
 #Adds a track (array with album, artist and track name) to a Google Play Music playlist with specified ID
 def addSongsToGooglePlaylistFromInfo(playlist_id, track):
     #track should be array with 3 elements
@@ -150,6 +265,7 @@ def addSongsToGooglePlaylistFromInfo(playlist_id, track):
             return True
     return False #could not find track in library
 
+#Converts a Spotify playlist to a Google Play Music playlist
 def spotifyToGoogle():
     #Gets Spotify playlist from inputted URL
     playlistURL = acceptPlaylistURL()
@@ -182,30 +298,81 @@ def spotifyToGoogle():
             for failure in failures:
                 print(failure[0] + " - " + failure[1] + " - " + failure[2])
 
+#Converts a Google Play Music playlist to a Spotify playlist
 def googleToSpotify():
-    print("Google to Spotify")
+    print("Please enter the name of the Google Play Music playlist you would like to convert.")
+    print("Note that if multiple playlists exist with the same name, the first one will be selected; rename the playlist to be unique to avoid this.")
+    playlistName = input("| ") #Gets playlist name
+    targetPlaylist = findGooglePlaylist(playlistName) #Finds playlist matching inputted name
+
+    if targetPlaylist == None:
+        print("No matching playlist found.")
+    else:
+        print("Matching playlist found.")
+
+        #Get playlist description, if there is one
+        try:
+            playlistDescription = targetPlaylist["description"]
+        except:
+            playlistDescription = ""
+
+        #Gets album, artist and track names for the contents of the playlist
+        tracksInfo = getInfoFromGooglePlaylist(targetPlaylist)
+
+        print("Would you like the Spotify playlist to be public? (y/n)")
+        choice = input("| ")
+        public = False
+        if choice.lower() == "y":
+            public = True
+
+        #Create new Spotify playlist
+        spotifyPlaylist = spotify.user_playlist_create(USERNAME, playlistName, public=public, description=playlistDescription)
+
+        spotifyIDs = []
+        failures = []
+
+        #For every track from Google to be added
+        for track in tracksInfo:
+            #Check if track exists on Spotify, and get track object if so
+            result = findTrackOnSpotify(track[0], track[1], track[2])
+            if not result: #No matching track found
+                failure = [track[0], track[1], track[2]]
+                failures.append(failure)
+            else:
+                spotifyIDs.append(result[0]["id"]) #Add ID of first matching result
+        
+        if failures: #output any tracks that could not be found
+            print("Certain tracks could not be found on Spotify (these tracks may be unavailable, or have metadata that does not match Google's):")
+            for failure in failures:
+                print(failure[0] + " - " + failure[1] + " - " + failure[2])
+        
+        #Add tracks to Spotify playlist
+        spotify.user_playlist_add_tracks(USERNAME, spotifyPlaylist["id"], spotifyIDs)
+        print("Playlist converted: https://open.spotify.com/playlist/" + str(spotifyPlaylist["id"]))
+
 
 #If Spotify successfully authenticated
 if token:
     spotify = spotipy.Spotify(auth=token)
 
+    #Menu loop
     con = True
     while con:
         print("What would you like to do?")
-        print("(1)  Convert Spotify playlist to Google Play Music")
+        print("(1) Convert Spotify playlist to Google Play Music")
         print("(2) Convert Google Play Music playlist to Spotify")
         print("(3) Exit")
         choice = input("| ")
 
-        if choice == "3":
-            con == False
+        if choice == "3": #Exit
+            con = False
         elif choice == "2":
             googleToSpotify()
         elif choice == "1":
             spotifyToGoogle()
         else:
             print("Invalid response, please enter 1, 2, or 3 to choose an option.")
-
+    print("Exiting...")
 else:
     print("Spotify authentication error.")
     quit()
