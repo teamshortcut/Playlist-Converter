@@ -150,10 +150,7 @@ def addSongsToGooglePlaylistFromInfo(playlist_id, track):
             return True
     return False #could not find track in library
 
-#If Spotify successfully authenticated
-if token:
-    spotify = spotipy.Spotify(auth=token)
-
+def spotifyToGoogle():
     #Gets Spotify playlist from inputted URL
     playlistURL = acceptPlaylistURL()
     targetPlaylist = findSpotifyPlaylist(playlistURL)
@@ -181,9 +178,33 @@ if token:
                 failures.append(i)
 
         if failures: #output any tracks that could not be found
-            print("Certain tracks could not be found in the Google Play library.")
-            for i in failures:
-                print(failures[i][0] + " - " + failures[i][1] + " - " + failures[i][2])
+            print("Certain tracks could not be found in the Google Play library:")
+            for failure in failures:
+                print(failure[0] + " - " + failure[1] + " - " + failure[2])
+
+def googleToSpotify():
+    print("Google to Spotify")
+
+#If Spotify successfully authenticated
+if token:
+    spotify = spotipy.Spotify(auth=token)
+
+    con = True
+    while con:
+        print("What would you like to do?")
+        print("(1)  Convert Spotify playlist to Google Play Music")
+        print("(2) Convert Google Play Music playlist to Spotify")
+        print("(3) Exit")
+        choice = input("| ")
+
+        if choice == "3":
+            con == False
+        elif choice == "2":
+            googleToSpotify()
+        elif choice == "1":
+            spotifyToGoogle()
+        else:
+            print("Invalid response, please enter 1, 2, or 3 to choose an option.")
 
 else:
     print("Spotify authentication error.")
