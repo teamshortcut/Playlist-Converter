@@ -24,7 +24,8 @@ The program has been tested with Python 3.7, but is likely to work with other ve
 * [spotipy](https://spotipy.readthedocs.io/en/latest/) - A Python wrapper for Spotify's API
 * [gmusicapi](https://unofficial-google-music-api.readthedocs.io/en/latest) - An (unofficial) API to interact with Google Play Music through Python
 * [requests](http://docs.python-requests.org/en/master/) - Used for requests to Spotify's API
-* [re](https://docs.python.org/3/library/re.html) - Regular expressions, or regex
+These can be automatically installed by running the below command.
+```pip install -r requirements.txt```
 
 ## Usage
 To use the script, simply run `python playlist.py`, and follow the instructions. You will need to have a Spotify playlist (and its URL), or a Google Play Music playlist created. Plesae note that if this playlist does not have a unique title, it may not be correctly found. Any titles that could not be found on Spotify or in the user's Google Play Music library will be displayed. This may be because they are not present, or that the metadata (track, album or artist name) differs between platforms.
