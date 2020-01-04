@@ -24,6 +24,7 @@ The program has been tested with Python 3.7, but is likely to work with other ve
 * [spotipy](https://spotipy.readthedocs.io/en/latest/) - A Python wrapper for Spotify's API
 * [gmusicapi](https://unofficial-google-music-api.readthedocs.io/en/latest) - An (unofficial) API to interact with Google Play Music through Python
 * [requests](http://docs.python-requests.org/en/master/) - Used for requests to Spotify's API
+
 These can be automatically installed by running the below command.
 ```pip install -r requirements.txt```
 
