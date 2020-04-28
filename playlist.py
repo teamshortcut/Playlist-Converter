@@ -295,8 +295,15 @@ def spotifyToGoogle():
 
         if failures: #output any tracks that could not be found
             print("Certain tracks could not be found in the Google Play library:")
+            missing_tracks = []
             for failure in failures:
-                print(failure[0] + " - " + failure[1] + " - " + failure[2])
+                track = failure[0] + " - " + failure[1] + " - " + failure[2]
+                print(track)
+                missing_tracks.append(track)
+
+            new_description = playlistDescription + "\n" + playlistURL + "\nMissing from original playlist:\n" + "\n".join(missing_tracks)
+            api.edit_playlist(playlist_id, new_description=new_description)
+
 
 #Converts a Google Play Music playlist to a Spotify playlist
 def googleToSpotify():
@@ -339,12 +346,20 @@ def googleToSpotify():
                 failure = [track[0], track[1], track[2]]
                 failures.append(failure)
             else:
+                print(track[0] + " - " + track[1] + " - " + track[2])
                 spotifyIDs.append(result[0]["id"]) #Add ID of first matching result
         
+
         if failures: #output any tracks that could not be found
             print("Certain tracks could not be found on Spotify (these tracks may be unavailable, or have metadata that does not match Google's):")
+            missing_tracks = ["Missing from original playlist:"]
             for failure in failures:
-                print(failure[0] + " - " + failure[1] + " - " + failure[2])
+                track = failure[0] + " - " + failure[1] + " - " + failure[2]
+                print(track)
+                missing_tracks.append(track)
+
+            new_description = playlistDescription + " | ".join(missing_tracks)
+            spotify.user_playlist_change_details(USERNAME, spotifyPlaylist["id"], description=new_description[:300]) # 300 character limit
         
         #Add tracks to Spotify playlist
         spotify.user_playlist_add_tracks(USERNAME, spotifyPlaylist["id"], spotifyIDs)
