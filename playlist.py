@@ -226,22 +226,25 @@ def getInfoFromSpotifyPlaylist(targetPlaylist):
 
 #Extracts album, artist and track names for each item in a (Google) playlist
 def getInfoFromGooglePlaylist(targetPlaylist):
-    trackIDs = []
+    trackIDs = {}
+    count = 0
     #Extract IDs of each track in the playlist
     for track in targetPlaylist["tracks"]:
-        trackIDs.append(track["trackId"])
+        trackIDs[track["trackId"]] = count
+        count += 1
     
-    tracksInfo = []
+    tracksInfo = [None] * count
     library = api.get_all_songs()
     #Looks for matching track in Google Play library
     for track in library:
-        if track["id"] in trackIDs:
+        if track["id"] in trackIDs.keys():
             #Add album, artist and track names to 2D array
             info = []
             info.append(track["album"])
             info.append(track["albumArtist"])
             info.append(track["title"])
-            tracksInfo.append(info)
+            print(info)
+            tracksInfo[trackIDs[track["id"]]] = info
 
     return tracksInfo
 
