@@ -1,6 +1,7 @@
 import gmusicapi
 import spotipy
-import spotipy.util as util
+import spotipy.oauth2
+import spotipy.util
 from ytmusicapi import YTMusic
 import requests
 import re
@@ -20,7 +21,7 @@ USERNAME = "user"
 ANDROID_MAC_ADDRESS = "XXXX"
 
 #Authenticates Spotify and Google Play Music
-token = util.prompt_for_user_token(USERNAME, SCOPE, client_id=SPOTIPY_CLIENT_ID, client_secret=SPOTIPY_CLIENT_SECRET, redirect_uri=SPOTIPY_REDIRECT_URI)
+token = spotipy.util.prompt_for_user_token(USERNAME, SCOPE, client_id=SPOTIPY_CLIENT_ID, client_secret=SPOTIPY_CLIENT_SECRET, redirect_uri=SPOTIPY_REDIRECT_URI)
 api = gmusicapi.Mobileclient()
 headers = YTMusic.setup(filepath="headers_auth.json", headers_raw="""HEADERS""")
 
@@ -174,7 +175,7 @@ def findSpotifyPlaylist(url):
     playlistID = extractSpotifyIDFromURL(url)
 
     #Authorises Spotify Web API (Python library doesn't support playlists not owned by user)
-    auth = util.oauth2.SpotifyClientCredentials(SPOTIPY_CLIENT_ID, SPOTIPY_CLIENT_SECRET)
+    auth = spotipy.oauth2.SpotifyClientCredentials(SPOTIPY_CLIENT_ID, SPOTIPY_CLIENT_SECRET)
     token = auth.get_access_token()
     headers = {"Authorization": "Bearer "+token}
 
@@ -312,6 +313,24 @@ def addSongsToGooglePlaylistFromInfo(playlist_id, track):
             return True
     return False #could not find track in library
 
+def addSongsToYtPlaylistFromInfo(playlist_id, track):
+    #track should be array with 3 elements
+    albumName = track[0]
+    artistName = track[1]
+    trackName = track[2]
+
+    print(albumName + " - " + artistName + " - " + trackName)
+
+    library = ytmusic.get_library_upload_songs(100000)
+    track_ids = []
+    #Looks for matching track in YouTube Music library
+    for track in library:
+        if matchTitle(track["album"]["name"], albumName) and matchTitle(track["artist"][0]["name"], artistName) and matchTitle(track["title"], trackName):
+            track_ids.append(track["videoId"]) #gets track ID
+            ytmusic.add_playlist_items(playlist_id, track_ids) #adds track to playlist
+            return True
+    return False #could not find track in library
+
 def ytToSpotify():
     print("Please enter the name of the YouTube Music playlist you would like to convert.")
     print("Note that if multiple playlists exist with the same name, the first one will be selected; rename the playlist to be unique to avoid this.")
@@ -344,7 +363,7 @@ def ytToSpotify():
         spotifyIDs = []
         failures = []
 
-        #For every track from Google to be added
+        #For every track from Youtube to be added
         print(tracksInfo)
         for track in tracksInfo:
             #Check if track exists on Spotify, and get track object if so
@@ -358,7 +377,7 @@ def ytToSpotify():
 
 
         if failures: #output any tracks that could not be found
-            print("Certain tracks could not be found on Spotify (these tracks may be unavailable, or have metadata that does not match Google's):")
+            print("Certain tracks could not be found on Spotify (these tracks may be unavailable, or have metadata that does not match YouTube's):")
             missing_tracks = ["Missing from original playlist:"]
             for failure in failures:
                 track = failure[0] + " - " + failure[1] + " - " + failure[2]
@@ -371,6 +390,45 @@ def ytToSpotify():
         #Add tracks to Spotify playlist
         spotify.user_playlist_add_tracks(USERNAME, spotifyPlaylist["id"], spotifyIDs)
         print("Playlist converted: https://open.spotify.com/playlist/" + str(spotifyPlaylist["id"]))
+
+def spotifyToYt():
+    #Gets Spotify playlist from inputted URL
+    playlistURL = acceptPlaylistURL()
+    targetPlaylist = findSpotifyPlaylist(playlistURL)
+
+    if targetPlaylist == None:
+        print("No matching playlist found.")
+    else:
+        print("Matching playlist found.")
+
+        #Get playlist metadata
+        playlistName = targetPlaylist["name"]
+        try:
+            playlistDescription = targetPlaylist["description"]
+        except:
+            playlistDescription = ""
+
+        #Get information on tracks in playlist
+        playlistItems = getInfoFromSpotifyPlaylist(targetPlaylist)
+
+        #Create new YouTube Music playlist
+        playlist_id = ytmusic.create_playlist(title=playlistName, description=playlistDescription)
+        failures = [] #Stores the tracks that could not be found in YouTube Music library
+        for i in playlistItems: #add each track to YouTube Music playlist
+            if not addSongsToYtPlaylistFromInfo(playlist_id, i): #could not find track
+                failures.append(i)
+
+        if failures: #output any tracks that could not be found
+            print("Certain tracks could not be found in the YouTube Music library:")
+            missing_tracks = []
+            for failure in failures:
+                track = failure[0] + " - " + failure[1] + " - " + failure[2]
+                print(track)
+                missing_tracks.append(track)
+
+            new_description = playlistDescription + "\n" + playlistURL + "\nMissing from original playlist:\n" + "\n".join(missing_tracks)
+            api.edit_playlist(playlist_id, new_description=new_description)
+
 
 #Converts a Spotify playlist to a Google Play Music playlist
 def spotifyToGoogle():
