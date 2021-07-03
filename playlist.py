@@ -285,7 +285,11 @@ def getInfoFromYtPlaylist(targetPlaylist):
         if track["videoId"] in trackIDs.keys():
             #Add album, artist and track names to 2D array
             info = []
-            info.append(track["album"]["name"])
+            print(track)
+            if not track["album"]:
+                info.append(track["title"])
+            else:
+                info.append(track["album"]["name"])
             info.append(track["artist"][0]["name"])
             info.append(track["title"])
             print(info)
@@ -325,10 +329,13 @@ def addSongsToYtPlaylistFromInfo(playlist_id, track):
     track_ids = []
     #Looks for matching track in YouTube Music library
     for track in library:
-        if matchTitle(track["album"]["name"], albumName) and matchTitle(track["artist"][0]["name"], artistName) and matchTitle(track["title"], trackName):
-            track_ids.append(track["videoId"]) #gets track ID
-            ytmusic.add_playlist_items(playlist_id, track_ids) #adds track to playlist
-            return True
+        try:
+            if matchTitle(track["album"]["name"], albumName) and matchTitle(track["artist"][0]["name"], artistName) and matchTitle(track["title"], trackName):
+                track_ids.append(track["videoId"]) #gets track ID
+                ytmusic.add_playlist_items(playlist_id, track_ids) #adds track to playlist
+                return True
+        except TypeError:
+            continue
     return False #could not find track in library
 
 def ytToSpotify():
@@ -388,7 +395,10 @@ def ytToSpotify():
             spotify.user_playlist_change_details(USERNAME, spotifyPlaylist["id"], description=new_description[:300]) # 300 character limit
 
         #Add tracks to Spotify playlist
-        spotify.user_playlist_add_tracks(USERNAME, spotifyPlaylist["id"], spotifyIDs)
+
+        n = 100 # max num tracks per request
+        for subset_ids in [spotifyIDs[i:i+n] for i in range(0, len(spotifyIDs), n)]:
+            spotify.user_playlist_add_tracks(USERNAME, spotifyPlaylist["id"], subset_ids)
         print("Playlist converted: https://open.spotify.com/playlist/" + str(spotifyPlaylist["id"]))
 
 def spotifyToYt():
@@ -427,7 +437,8 @@ def spotifyToYt():
                 missing_tracks.append(track)
 
             new_description = playlistDescription + "\n" + playlistURL + "\nMissing from original playlist:\n" + "\n".join(missing_tracks)
-            api.edit_playlist(playlist_id, new_description=new_description)
+            result = ytmusic.edit_playlist(playlist_id, description=new_description)
+            print(result)
 
 
 #Converts a Spotify playlist to a Google Play Music playlist
